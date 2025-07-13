@@ -7,10 +7,14 @@ services:
     container_name: kafka-zookeeper
     ports:
       - "2181:2181"
+      - "9998:9998"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
       ZOOKEEPER_SYNC_LIMIT: 2
+      JMX_PORT: 9998 # Choose a different JMX port than Kafka's
+      JMX_HOSTNAME: zookeeper # Use the Docker service name 'zookeeper'
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=zookeeper"
     volumes:
       - zookeeper-data:/var/lib/zookeeper/data
       - zookeeper-logs:/var/lib/zookeeper/log
@@ -36,7 +40,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost # Note: For external JMX, use VM's external IP, but Datadog Agent connects internally
+      KAFKA_JMX_HOSTNAME: kafka # Note: For external JMX, use VM's external IP, but Datadog Agent connects internally
+      KAFKA_JMX_OPTS: "-Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     volumes:
       - kafka-data:/var/lib/kafka/data
@@ -121,7 +126,7 @@ services:
     container_name: datadog-agent
     environment:
       - DD_API_KEY=${DD_API_KEY} # Will be set as an environment variable on the host
-      - DD_SITE=datadoghq.com
+      - DD_SITE=ap1.datadoghq.com
       - DD_HOSTNAME=kafka-aiops-host # Custom hostname for Datadog UI
       - DD_TAGS=env:lab,team:devops,project:kafka-datadog-ops
       - DD_APM_ENABLED=true
@@ -135,7 +140,7 @@ services:
       - /proc/:/host/proc/:ro # For system metrics
       - /opt/datadog-agent/conf.d:/conf.d:ro # Mount custom Datadog config
       - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro # For cgroup metrics
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro # For log collection
+      - ./datadog-agent-config/conf.d:/etc/datadog-agent/conf.d:ro  # For log collection
       - ./datadog-agent-config/logs:/opt/datadog-agent/logs:rw # Mount local logs directory for agent's logs
     ports:
       - "8125:8125/udp" # DogStatsD port
