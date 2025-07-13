@@ -1,0 +1,13 @@
+logs:
+  - type: docker
+    source: python # Default source for your Python app logs
+    service: kafka-app # Default service for your Python app logs
+    log_processing_rules:
+      - type: multi_line
+        name: new_log_start_with_date
+        pattern: \d{4}-\d{2}-\d{2} # Matches YYYY-MM-DD at the start of a log line
+
+    # Additional log collection configuration can be added here
+    # Example: if you had specific files within containers to collect (not needed for this lab as we collect stdout/stderr)
+    # include_paths:
+    #   - /path/to/my/app/logs/*.log

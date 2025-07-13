@@ -1,0 +1,11 @@
+init_config:
+
+instances:
+  - docker_daemon: unix:///var/run/docker.sock
+    # Collects container metrics from all containers
+    collect_container_size: true # Include container disk usage
+    collect_volume_size: true    # Include volume disk usage
+
+# Metrics collected by this integration will include:
+# docker.containers.running, docker.containers.stopped, docker.cpu.usage, docker.mem.usage
+# and many more, for each container.

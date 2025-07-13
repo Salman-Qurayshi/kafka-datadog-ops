@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: kafka-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - kafka-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101" # For JMX metrics, though Datadog will handle main metrics
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost # Note: For external JMX, use VM's external IP, but Datadog Agent connects internally
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080" # Exposed for web access
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - kafka-network
+
+  # Python Producer Application 
+  producer:
+    build: ./producer # Build from the producer directory
+    container_name: kafka-producer
+    depends_on:
+      - kafka
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    # Add Datadog specific labels for enhanced logging and tagging
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "kafka-producer"}]'
+      com.datadoghq.ad.tags: 'app:kafka-producer,env:dev,team:data'
+
+  # Python Consumer Application 
+  consumer:
+    build: ./consumer # Build from the consumer directory
+    container_name: kafka-consumer
+    depends_on:
+      - kafka
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    # Add Datadog specific labels for enhanced logging and tagging
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "kafka-consumer"}]'
+      com.datadoghq.ad.tags: 'app:kafka-consumer,env:dev,team:data'
+
+  # Python Stream Processor Application 
+  stream-processor:
+    build: ./stream-processor # Build from the stream-processor directory
+    container_name: kafka-stream-processor
+    depends_on:
+      - kafka
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    # Add Datadog specific labels for enhanced logging and tagging
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "kafka-stream-processor"}]'
+      com.datadoghq.ad.tags: 'app:kafka-stream-processor,env:dev,team:data'
+
+  # Python Alert Consumer Application 
+  alert-consumer:
+    build: ./stream-processor # Shares Dockerfile with stream-processor
+    container_name: kafka-alert-consumer
+    depends_on:
+      - kafka
+      - stream-processor # Depends on stream-processor to receive its alerts
+    networks:
+      - kafka-network
+    command: ["python", "alert_consumer.py"] # Specifies which script to run from the build context
+    restart: unless-stopped
+    # Add Datadog specific labels for enhanced logging and tagging
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "python", "service": "kafka-alert-consumer"}]'
+      com.datadoghq.ad.tags: 'app:kafka-alert-consumer,env:dev,team:data,severity:alert'
+
+  # Datadog Agent Service 
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7 # Using the GCR image 
+    container_name: datadog-agent
+    environment:
+      - DD_API_KEY=${DD_API_KEY} # Will be set as an environment variable on the host
+      - DD_SITE=datadoghq.com
+      - DD_HOSTNAME=kafka-aiops-host # Custom hostname for Datadog UI
+      - DD_TAGS=env:lab,team:devops,project:kafka-datadog-ops
+      - DD_APM_ENABLED=true
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true # Collects logs from all containers
+      - DD_CONTAINER_EXCLUDE_LOGS="name:datadog-agent" # Exclude agent's own logs
+      - DD_DOCKER_LABELS_AS_TAGS='{"com.datadoghq.ad.tags":"tags","com.datadoghq.ad.logs":"logs"}' # Collect custom labels as tags
+      - DD_COLLECT_KUBERNETES_EVENTS=false # Not a Kubernetes environment
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Mount Docker socket for container metrics
+      - /proc/:/host/proc/:ro # For system metrics
+      - /opt/datadog-agent/conf.d:/conf.d:ro # Mount custom Datadog config
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro # For cgroup metrics
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # For log collection
+      - ./datadog-agent-config/logs:/opt/datadog-agent/logs:rw # Mount local logs directory for agent's logs
+    ports:
+      - "8125:8125/udp" # DogStatsD port
+      - "8126:8126"     # APM Trace Agent port
+    restart: unless-stopped
+    privileged: true # Required for full system access for monitoring
+    pid: host # To monitor host processes, though mostly for Docker containers here
+    networks:
+      - kafka-network # Connects to the same network as other services
+
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+
+networks:
+  kafka-network:
+    driver: bridge
