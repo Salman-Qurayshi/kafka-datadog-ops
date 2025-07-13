@@ -1,0 +1,26 @@
+# datadog-agent-config/conf.d/kafka.d/conf.yaml
+init_config:
+
+instances:
+  - host: kafka # This must match the KAFKA_JMX_HOSTNAME you set in docker-compose.yml
+    port: 9101 # This must match the KAFKA_JMX_PORT you set
+    tags:
+      - role:kafka_broker
+      - environment:lab
+      - service_type:messaging
+    conf:
+      - include:
+          domain: kafka.server
+          type: BrokerTopicMetrics
+      - include:
+          domain: kafka.network
+          type: RequestMetrics
+      - include:
+          domain: kafka.controller
+          type: ControllerStats
+      - include:
+          domain: kafka.log
+          type: Log
+      - include:
+          domain: kafka.server
+          type: KafkaServer

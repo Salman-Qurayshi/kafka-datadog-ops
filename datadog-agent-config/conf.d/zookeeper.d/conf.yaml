@@ -1,0 +1,26 @@
+# datadog-agent-config/conf.d/zookeeper.d/conf.yaml
+init_config:
+
+instances:
+  - host: zookeeper # This must match the JMX_HOSTNAME you set in docker-compose.yml
+    port: 9998 # This must match the JMX_PORT you set
+    tags:
+      - role:zookeeper_ensemble
+      - environment:lab
+      - service_type:messaging_metadata
+    conf:
+      - include:
+          domain: org.apache.ZooKeeper.server
+          type: DataTree
+      - include:
+          domain: org.apache.ZooKeeper.server
+          type: InMemoryDataTree
+      - include:
+          domain: org.apache.ZooKeeper.server
+          type: Connection
+      - include:
+          domain: org.apache.ZooKeeper.server
+          type: Follower
+      - include:
+          domain: org.apache.ZooKeeper.server
+          type: Leader
