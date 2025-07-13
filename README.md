@@ -206,9 +206,6 @@ I'll add screenshots here to visually demonstrate the project's setup and the da
     ![Docker Compose Services Running](screenshots/compose-up-cli.png)
 
 
-- **Datadog Agent Status (Kafka Check Initialized)**
-    ![Datadog Agent Status](screenshots/datadog-agent-status.png)
-
 
 - **Datadog Logs Explorer**
     ![Datadog Logs Explorer](screenshots/Log-Explorer-Datadog.png)
