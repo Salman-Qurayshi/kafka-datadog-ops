@@ -122,7 +122,7 @@ services:
 
   # Datadog Agent Service 
   datadog-agent:
-    image: gcr.io/datadoghq/agent:7 # Using the GCR image 
+    image: gcr.io/datadoghq/agent:7-jmx # Using the GCR image 
     container_name: datadog-agent
     environment:
       - DD_API_KEY=${DD_API_KEY} # Will be set as an environment variable on the host
